@@ -908,7 +908,7 @@ template<class T>T* sdl_board::add(const char* title,int px,int py,int pw,int ph
 	t->init(title,px,py,pw,ph,pflags);
 	//cout<<"add board start"<<endl;
 	t->_parent = this;
-	z_top(t,NULL,0);
+	z_top(t,NULL,1);
 	//cout<<"add board end"<<endl;
 	return t;
 }
@@ -919,7 +919,7 @@ template<class T>T* sdl_board::add(T* obj)
 	if(obj)
 	{
 		obj->_parent = this;
-		z_top(obj,NULL,0);
+		z_top(obj,NULL,1);
 		return obj;
 	}
 	return NULL;
@@ -937,7 +937,7 @@ template<class T>T* sdl_board::add(T* obj)
 			否则如果z>0表示a移动到b的后面
 			否则如果z<0表示a移动到b的前面
  */
-int sdl_board::z_top(sdl_board* a,sdl_board *b,int z=0)
+int sdl_board::z_top(sdl_board* a,sdl_board *b,int z=1)
 {
 	map<sdl_board*,int>::iterator node;
 	if(!a)return -1;
@@ -990,13 +990,14 @@ int sdl_board::redraw()
 {
 	sdl_board* node_board;
 	map<sdl_board*,int>::iterator node = _board_list.begin();
+	blit_surface(NULL,_board,NULL);
 	while(node!=_board_list.end())
 	{
-		blit_surface(NULL,_board,NULL);
 		node_board = (sdl_board*)node->first;
-		if(node_board->_board_list.size())node_board->redraw();
-		node_board->blit_surface(NULL,_board,NULL);
+		node_board->redraw();
+		node_board->_board->blit_surface(NULL,_board,NULL);
 		node++;
+		cout<<node_board<<endl;
 	}
 	return 0;
 }
