@@ -171,6 +171,7 @@ typedef class sdl_board : public GUI<sdl_board,sdlsurface>
 		sdl_board* parent();
 		/* 返回给定对象是否为当前窗口的子窗口 */
 		int is_child(sdl_board*);
+		sdl_board* child(int,int);
 		/* 添加子级窗口 */
 		template<class T>T* add(const char*,int,int,int,int,Uint32);
 		template<class T>T* add(T*);
@@ -194,6 +195,7 @@ typedef class sdl_board : public GUI<sdl_board,sdlsurface>
 		sdlsurface *_board;
 		sdl_board** _hit_board_ptr;
 		SDL_Rect  _rect;
+		SDL_Rect  _global_rect;
 		SDL_Point _pos,_size;
 		sdl_board *_parent;
 		sdl_board *_end,*_head;
@@ -809,6 +811,8 @@ int sdl_board::init(const char* ptitle,int px,int py,int pw,int ph,Uint32 pflags
 	_rect.y = py;
 	_rect.w = pw;
 	_rect.h = ph;
+	_global_rect.x = 0;
+	_global_rect.y = 0;
 	//--------------
 	if(_board)delete _board;
 	_board = new sdlsurface(0,pw,ph,32,0,0,0,0);
@@ -867,6 +871,16 @@ int sdl_board::pos(int x,int y)
 {
 	_rect.x = x;
 	_rect.y = y;
+	if(_parent)
+	{
+		_global_rect.x = _parent->_global_rect.x+_rect.x;
+		_global_rect.y = _parent->_global_rect.y+_rect.y;
+	}
+	else
+	{
+		_global_rect.x = 0;
+		_global_rect.y = 0;
+	}
 	return 0;
 }
 //设置父级窗口
@@ -900,6 +914,23 @@ int sdl_board::is_child(sdl_board* obj)
 	//如果一直没有返回表示指定窗口不是当前窗口的子级,则返回-1
 	return 0;
 }
+sdl_board* sdl_board::child(int x,int y)
+{
+	map<sdl_board*,int>::iterator node;
+	sdl_board* board_node;
+	int px,py,gw,gh;
+	for(node = _board_list.begin();node!=_board_list.end();node++)
+	{
+		board_node=(sdl_board*)node->first;
+		gw = board_node->_global_rect.x+board_node->_rect.w;
+		gh = board_node->_global_rect.y+board_node->_rect.h;
+		if(x>=board_node->_global_rect.x && x<=gw && y>=board_node->_global_rect.y && y<=gh)
+		{
+			return board_node->child(x,y);
+		}
+	}
+	return this;
+}
 //-------------------------------------
 //添加子内部窗口底板
 template<class T>T* sdl_board::add(const char* title,int px,int py,int pw,int ph,Uint32 pflags)
@@ -908,6 +939,8 @@ template<class T>T* sdl_board::add(const char* title,int px,int py,int pw,int ph
 	t->init(title,px,py,pw,ph,pflags);
 	//cout<<"add board start"<<endl;
 	t->_parent = this;
+	t->_global_rect.x = _global_rect.x+px;
+	t->_global_rect.y = _global_rect.y+py;
 	z_top(t,NULL,1);
 	//cout<<"add board end"<<endl;
 	return t;
@@ -941,18 +974,21 @@ int sdl_board::z_top(sdl_board* a,sdl_board *b,int z=1)
 {
 	map<sdl_board*,int>::iterator node;
 	if(!a)return -1;
-	/* 如果没有b对象表示直接插入 */
+	/* 如果没有b对象表示直接插入或删除 */
 	if(!b)
 	{
+		/* 大于0表示插入到头 */
 		if(z>0)
 		{
 			_board_list.insert(pair<sdl_board*,int>(a,0));
 		}
 		else
+		/* 小于0表示插入到尾 */
 		if(z<0)
 		{
 			_board_list.insert(_board_list.begin(),pair<sdl_board*,int>(a,0));
 		}
+		/* 为0表示删除 */
 		else
 		{
 			_board_list.erase(a);
@@ -997,7 +1033,6 @@ int sdl_board::redraw()
 		node_board->redraw();
 		node_board->_board->blit_surface(NULL,_board,NULL);
 		node++;
-		cout<<node_board<<endl;
 	}
 	return 0;
 }
@@ -1168,7 +1203,9 @@ int sdl_frame::event_shunt(SDL_Event* e)
 		break;
 	}
 	//t = hit_board(x,y);
+	t = child(x,y);
 	t = (t==0)?(sdl_board*)this : t;
+	cout<<t<<endl;
 	switch(e->type)
 	{
 		case SDL_MOUSEBUTTONDOWN:
