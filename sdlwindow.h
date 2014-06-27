@@ -939,12 +939,10 @@ template<class T>T* sdl_board::add(const char* title,int px,int py,int pw,int ph
 {
 	T* t = dynamic_cast<T*>(new T);
 	t->init(title,px,py,pw,ph,pflags);
-	//cout<<"add board start"<<endl;
 	t->_parent = this;
 	t->_global_rect.x = _global_rect.x+px;
 	t->_global_rect.y = _global_rect.y+py;
 	z_top(t,NULL,1);
-	//cout<<"add board end"<<endl;
 	return t;
 }
 //---------------------------------------------------
@@ -979,13 +977,13 @@ int sdl_board::z_top(sdl_board* a,sdl_board *b,int z=1)
 	/* 如果没有b对象表示直接插入或删除 */
 	if(!b)
 	{
-		/* 大于0表示插入到头 */
+		/* 大于0表示插入到尾 */
 		if(z>0)
 		{
 			_board_list.insert(pair<sdl_board*,int>(a,0));
 		}
 		else
-		/* 小于0表示插入到尾 */
+		/* 小于0表示插入到头 */
 		if(z<0)
 		{
 			_board_list.insert(_board_list.begin(),pair<sdl_board*,int>(a,0));
@@ -1032,6 +1030,7 @@ int sdl_board::redraw()
 	blit_surface(NULL,_board,NULL);
 	while(node!=_board_list.end())
 	{
+		//cout<<node->first<<endl;
 		node_board = (sdl_board*)node->first;
 		node_board->redraw();
 		/* 调整画到父级窗口的绘画范围 */
@@ -1077,7 +1076,7 @@ int sdl_board::redraw()
 			prt.y = 0;
 			prt.h = node_board->_rect.h+node_board->_rect.y;
 			srt.y = node_board->_rect.y*-1;
-			srt.w = node_board->_rect.h+node_board->_rect.y;
+			srt.h = node_board->_rect.h+node_board->_rect.y;
 		}
 		node_board->_board->blit_surface(&srt,_board,&prt);
 		node++;
