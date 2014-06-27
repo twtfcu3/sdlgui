@@ -919,14 +919,16 @@ sdl_board* sdl_board::child(int x,int y)
 	map<sdl_board*,int>::iterator node;
 	sdl_board* board_node;
 	int px,py,gw,gh;
+	px = x-_rect.x;
+	py = y-_rect.y;
 	for(node = _board_list.begin();node!=_board_list.end();node++)
 	{
 		board_node=(sdl_board*)node->first;
-		gw = board_node->_global_rect.x+board_node->_rect.w;
-		gh = board_node->_global_rect.y+board_node->_rect.h;
-		if(x>=board_node->_global_rect.x && x<=gw && y>=board_node->_global_rect.y && y<=gh)
+		gw = board_node->_rect.x+board_node->_rect.w;
+		gh = board_node->_rect.y+board_node->_rect.h;
+		if(px>=board_node->_rect.x && px<=gw && py>=board_node->_rect.y && py<=gh)
 		{
-			return board_node->child(x,y);
+			return board_node->child(px,py);
 		}
 	}
 	return this;
@@ -1202,10 +1204,8 @@ int sdl_frame::event_shunt(SDL_Event* e)
 			y = e->tfinger.y * _window_rect.y;
 		break;
 	}
-	//t = hit_board(x,y);
 	t = child(x,y);
 	t = (t==0)?(sdl_board*)this : t;
-	cout<<t<<endl;
 	switch(e->type)
 	{
 		case SDL_MOUSEBUTTONDOWN:
@@ -1216,7 +1216,11 @@ int sdl_frame::event_shunt(SDL_Event* e)
 				//sdl_frame::_capture_win->event_signal("on_click");
 			}
 			//
-			if(t != this)t->event(e);
+			if(t != this)
+			{
+				t->event(e);
+				t->event_signal("on_click");
+			}
 		break;
 		case SDL_MOUSEBUTTONUP:
 		case SDL_FINGERUP:
