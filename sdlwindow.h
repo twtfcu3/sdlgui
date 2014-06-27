@@ -1027,13 +1027,59 @@ int sdl_board::z_top(sdl_board* a,sdl_board *b,int z=1)
 int sdl_board::redraw()
 {
 	sdl_board* node_board;
+	SDL_Rect prt,srt;
 	map<sdl_board*,int>::iterator node = _board_list.begin();
 	blit_surface(NULL,_board,NULL);
 	while(node!=_board_list.end())
 	{
 		node_board = (sdl_board*)node->first;
 		node_board->redraw();
-		node_board->_board->blit_surface(NULL,_board,NULL);
+		/* 调整画到父级窗口的绘画范围 */
+		if(node_board->_rect.x>0)
+		{
+			srt.x = 0;
+			prt.x = node_board->_rect.x;
+			if(node_board->_rect.x+node_board->_rect.w > _rect.w)
+			{
+				prt.w = _rect.w-node_board->_rect.x;
+				srt.w = _rect.w-node_board->_rect.x;
+			}
+			else
+			{
+				prt.w = node_board->_rect.w;
+				srt.w = node_board->_rect.w;
+			}
+		}
+		else
+		{
+			prt.x = 0;
+			prt.w = node_board->_rect.w+node_board->_rect.x;
+			srt.x = node_board->_rect.x*-1;
+			srt.w = node_board->_rect.w+node_board->_rect.x;
+		}
+		if(node_board->_rect.y>0)
+		{
+			srt.y = 0;
+			prt.y = node_board->_rect.y;
+			if(node_board->_rect.y+node_board->_rect.h > _rect.h)
+			{
+				prt.h = _rect.h-node_board->_rect.y;
+				srt.h = _rect.h-node_board->_rect.y;
+			}
+			else
+			{
+				prt.h = node_board->_rect.h;
+				srt.h = node_board->_rect.h;
+			}
+		}
+		else
+		{
+			prt.y = 0;
+			prt.h = node_board->_rect.h+node_board->_rect.y;
+			srt.y = node_board->_rect.y*-1;
+			srt.w = node_board->_rect.h+node_board->_rect.y;
+		}
+		node_board->_board->blit_surface(&srt,_board,&prt);
 		node++;
 	}
 	return 0;
