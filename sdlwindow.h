@@ -175,6 +175,8 @@ typedef class sdl_board : public GUI<sdl_board,sdlsurface>
 		/* 添加子级窗口 */
 		template<class T>T* add(const char*,int,int,int,int,Uint32);
 		template<class T>T* add(T*);
+		/* 销毁子级窗口 */
+		int destroy(int);
 		/* 调整当前窗口Z序 */
 		int z_top(sdl_board*,sdl_board*,int);
 		/* 初始化时用于绘图窗口的虚函数 */
@@ -1017,6 +1019,21 @@ int sdl_board::z_top(sdl_board* a,sdl_board *b,int z=1)
 			_board_list.erase(b);
 			_board_list.insert(node,pair<sdl_board*,int>(b,0));
 		}
+	}
+	return 0;
+}
+//---------------------------------------------
+//销毁子级窗口参数P表示是否销毁本身
+int sdl_board::destroy(int p)
+{
+	map<sdl_board*,int>::iterator node;
+	sdl_board* node_board;
+	_is_destroy = p;
+	if(_is_destroy && _parent)_parent->_board_list.erase(this);
+	for(node = _board_list.begin();node!=_board_list.end();node++)
+	{
+		node_board = (sdl_board*)node->first;
+		return node_board->destroy(1);		
 	}
 	return 0;
 }
