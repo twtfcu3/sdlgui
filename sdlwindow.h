@@ -78,6 +78,8 @@ const int sdlgui_event_timer = timer_event_macro(001);
 const int sdlgui_button_up= button_event_macro(001);
 const int sdlgui_button_down = button_event_macro(002);
 const int sdlgui_button_click = button_event_macro(003);
+const int sdlgui_button_motion= button_event_macro(004);
+const int sdlgui_button_wheel= button_event_macro(005);
 //
 //IME类消息集合1002
 #define ime_event_macro(y) __event_macro__(1002,y) 
@@ -196,7 +198,10 @@ typedef class sdl_board : public GUI<sdl_board,sdlsurface>
 		int event_signal(string,SDL_Event*);
 		/* 鼠标点击事件 */
 		virtual int on_click(sdl_board*,void*);
-		//virtual int on_motion(sdl_board*,void*);
+		/* 鼠标移动事件 */
+		virtual int on_motion(sdl_board*,void*);
+		/* 鼠标中键滚动事件 */
+		virtual int on_wheel(sdl_board*,void*);
 	protected:
 		sdlsurface *_board;
 		SDL_Rect  _rect;
@@ -889,7 +894,11 @@ int sdl_board::init(const char* ptitle,int px,int py,int pw,int ph,Uint32 pflags
 	/* 注册委托函数 */
 	sdl_event_manager::push(this);
 	sdl_event_manager::push(this,"on_click");
+	sdl_event_manager::push(this,"on_motion");
+	sdl_event_manager::push(this,"on_wheel");
 	connect_event("on_click",this,sdlgui_button_click);
+	connect_event("on_motion",this,sdlgui_button_motion);
+	connect_event("on_wheel",this,sdlgui_button_wheel);
 	return 0;
 }
 //------------------------------------------
@@ -1173,6 +1182,12 @@ int sdl_board::handle(int id,SDL_Event* e)
 		case sdlgui_button_click:
 			on_click(This,(void*)e);
 		break;
+		case sdlgui_button_motion:
+			on_motion(This,(void*)e);
+		break;
+		case sdlgui_button_wheel:
+			on_wheel(This,(void*)e);
+		break;
 		default:
 		break;
 	}
@@ -1195,6 +1210,21 @@ int sdl_board::event_signal(string event_string,SDL_Event*e)
 int sdl_board::on_click(sdl_board* obj,void* data)
 {
 	cout<<"click board is:"<<this<<endl;
+	return 0;
+}
+//---------------------------------------------
+//底板窗口鼠标移动事件委托函数
+int sdl_board::on_motion(sdl_board* obj,void* data)
+{
+	cout<<"motion board is:"<<this<<endl;
+	return 0;
+}
+//-------------------------------------------------
+// 鼠标中键滚动事件 
+int sdl_board::on_wheel(sdl_board* obj,void* data)
+{
+	cout<<"mouse wheel is"<<this<<endl;
+	return 0;
 }
 //-------------------------------------------
 //
@@ -1358,7 +1388,13 @@ int sdl_frame::event_shunt(SDL_Event* e)
 		case SDL_MOUSEBUTTONUP:
 		case SDL_FINGERUP:
 		case SDL_FINGERMOTION:
+				t->event(e);
+				t->event_signal("on_click",e);
+		break;
 		case SDL_MOUSEMOTION:
+				t->event(e);
+				t->event_signal("on_motion",e);
+		break;
 		case SDL_MOUSEWHEEL:
 			//if(t != this)t->event(e);
 			//if(sdl_frame::_capture_win)
@@ -1369,7 +1405,7 @@ int sdl_frame::event_shunt(SDL_Event* e)
 			//else
 			{
 				t->event(e);
-				t->event_signal("on_click",e);
+				t->event_signal("on_wheel",e);
 			}
 		break;
 		case SDL_KEYUP:
