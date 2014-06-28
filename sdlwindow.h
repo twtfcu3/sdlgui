@@ -148,6 +148,7 @@ class GUI : public B
 typedef class sdl_board : public GUI<sdl_board,sdlsurface>
 {
 	public:
+		friend class sdl_event_manager;
 		friend class sdl_frame;
 	public:
 		sdl_board();
@@ -193,9 +194,9 @@ typedef class sdl_board : public GUI<sdl_board,sdlsurface>
 		int event_signal(string);
 		/* 鼠标点击事件 */
 		virtual int on_click(sdl_board*,void*);
+		//virtual int on_motion(sdl_board*,void*);
 	protected:
 		sdlsurface *_board;
-		sdl_board** _hit_board_ptr;
 		SDL_Rect  _rect;
 		SDL_Rect  _global_rect;
 		SDL_Point _pos,_size;
@@ -399,6 +400,7 @@ def_dll int sdl_event_object::count()
  */
 class sdl_event_manager
 {
+	friend class sdl_frame;
 	public:
 		/* 
 			加入事件对象 参数为对象地址
@@ -439,10 +441,18 @@ class sdl_event_manager
 	protected:
 		def_dll static map<sdl_board*,sdl_event_object*> _event_list;		
 		def_dll static SDL_Thread* _event_process_thread;
+		def_dll static sdl_condition _event_process_thread_cond;
+		def_dll static sdl_condition _event_created_thread_cond;
+		def_dll static sdl_mutex _event_thread_lock;
+		def_dll static int _event_thread_is_lock;
 
 };
 def_dll map<sdl_board*,sdl_event_object*> sdl_event_manager::_event_list;
 def_dll SDL_Thread* sdl_event_manager::_event_process_thread = NULL;
+def_dll sdl_condition sdl_event_manager::_event_process_thread_cond;
+def_dll sdl_condition sdl_event_manager::_event_created_thread_cond;
+def_dll sdl_mutex sdl_event_manager::_event_thread_lock;
+def_dll int sdl_event_manager::_event_thread_is_lock=0;
 ////////////////////////////////////////////////////
 //
 //
@@ -597,6 +607,7 @@ def_dll int sdl_event_manager::run(void* p)
 	sdl_event_object* event; 
 	sdl_event_struct* event_struct; 
 	sdl_event_handle event_struct_handle;
+	sdl_board* event_object;
 	while(1)
 	{
 		/* 引索所有的托管函数地址 */
@@ -604,30 +615,43 @@ def_dll int sdl_event_manager::run(void* p)
 		//event_iter = sdl_event_manager::_event_list.begin();
 		for(event_iter = sdl_event_manager::_event_list.begin();event_iter!=sdl_event_manager::_event_list.end();event_iter++)
 		{
-			/* 再读取注册事件对象的事件列表 */
-			event = (sdl_event_object*)event_iter->second;
+			event_object = (sdl_board*)(event_iter->first);
 			/* 
-				然后找到对象事件列表中的事件(委托)结构
-			*/
-			for(event_struct_iter = event->_object_event_list.begin();event_struct_iter!=event->_object_event_list.end();event_struct_iter++)
+				 如果当前对象要销毁则锁定事件处理线程 
+				 然后删除当前窗口节点 
+			 */
+			if(event_object->_is_destroy)
 			{
-				/* 使用对象事件列表累计 */
-				event_struct = (sdl_event_struct*)event_struct_iter->second;
-				if(event_struct->count())
+				cout<<event_object<<":"<<event_object->_is_destroy<<endl;
+			}
+			else
+			{
+				/* 否则再读取注册事件对象的事件列表 */
+				event = (sdl_event_object*)event_iter->second;
+				/* 
+					然后找到对象事件列表中的事件(委托)结构
+				*/
+				for(event_struct_iter = event->_object_event_list.begin();event_struct_iter!=event->_object_event_list.end();event_struct_iter++)
 				{
-					for(event_struct_handle_iter = event_struct->_event.begin();event_struct_handle_iter!=event_struct->_event.end();event_struct_handle_iter++)
+					/* 使用对象事件列表累计 */
+					event_struct = (sdl_event_struct*)event_struct_iter->second;
+					if(event_struct->count())
 					{
-						/* 调用托管的事件函数 */
-						event_struct_handle = (sdl_event_handle)event_struct_handle_iter->second;
-						if(event_struct_handle.object)
+						for(event_struct_handle_iter = event_struct->_event.begin();event_struct_handle_iter!=event_struct->_event.end();event_struct_handle_iter++)
 						{
-							event_struct_handle.object->handle(event_struct_handle.handle);
+							/* 调用托管的事件函数 */
+							event_struct_handle = (sdl_event_handle)event_struct_handle_iter->second;
+							if(event_struct_handle.object)
+							{
+								event_struct_handle.object->handle(event_struct_handle.handle);
+							}
 						}
+						event_struct->pull();
 					}
-					event_struct->pull();
 				}
 			}
 		}
+		SDL_Delay(1);
 	}
 	return 0;
 }
@@ -678,6 +702,8 @@ typedef class sdl_frame : public GUI<sdl_frame,sdl_board>
 	protected:
 		/* 事件分流 */
 		int event_shunt(SDL_Event*);
+		/* 渲染多线程函数 */
+		static int redraw_thread(void*);
 	public:
 		//sdl_ime ime;
 	protected:
@@ -692,6 +718,8 @@ typedef class sdl_frame : public GUI<sdl_frame,sdl_board>
 		int _is_exit;
 		/* 处理消息流的子级线程 */
 		SDL_Thread* _event_thread;
+		/* 处理重绘流的子级线程 */
+		SDL_Thread* _redraw_thread;
 }*sdl_frame_ptr;
 //--------------------------------------------------
 //
@@ -797,10 +825,16 @@ GUI<sdl_board,sdlsurface>()
 //底板析构函数
 sdl_board::~sdl_board()
 {
-	//cout<<"sdl_board::~sdl_board()"<<text()<<endl;
+	map<sdl_board*,int>::iterator node;
+	sdl_board* board_node;
 	/* 释放缓冲表面 */
 	if(_board)delete _board;
-	if(_hit_board_ptr)delete[] _hit_board_ptr;
+	for(node=_board_list.begin();node!=_board_list.end();node++)
+	{
+		board_node = (sdl_board*)node->first;
+		delete board_node;
+		_board_list.erase(node);
+	}
 }
 //底板初始函数
 int sdl_board::init(const char* ptitle,int px,int py,int pw,int ph,Uint32 pflags)
@@ -862,7 +896,6 @@ int sdl_board::init()
 	_next = NULL;
 	_last = NULL;
 	_board = NULL;
-	_hit_board_ptr = NULL;
 	/* 初始子窗口节点列表 */
 	_board_list.clear();
 	return 0;
@@ -1183,6 +1216,7 @@ sdl_frame::~sdl_frame()
 	{
 		delete _window;
 	}
+
 }
 //-------------------------
 //
@@ -1219,6 +1253,8 @@ int sdl_frame::init(const char* ptitle,int px,int py,int pw,int ph,Uint32 pflags
 	_screen.surface(_window->get_window_surface()->surface());
 	/* 开启消息流子级线程 */
 	//_event_thread = SDL_CreateThread(all_event_process,"event_process",(void*)this);
+	/* 开启重绘流子级线程 */
+	_redraw_thread = SDL_CreateThread(redraw_thread,"redraw_thread",(void*)this);
 	return 0;
 }
 //-----------------------------------
@@ -1236,6 +1272,29 @@ int sdl_frame::redraw()
 	sdl_board::redraw();
 	_board->blit_surface(NULL,&_screen,NULL);
 	//_window->update_window_surface();
+	return 0;
+}
+//----------------------------------------
+//重画函数子线程处理函数
+int sdl_frame::redraw_thread(void* data)
+{
+	clock_t _frame_timer;
+	double sleep = 0;
+	sdl_frame* f = (sdl_frame*)data;
+	while(!f->_is_exit)
+	{
+		_frame_timer = clock();
+		//
+		f->redraw();
+		//
+		/* 刷新屏幕 */
+		f->_window->update_window_surface();
+		/* 计算帧频 */
+		f->_fps = 1000 / ((clock() - _frame_timer + 0.001));
+		sleep = 1000/60-1000/f->_fps;
+		sleep = (sleep>0)?sleep:0;
+		SDL_Delay((sleep<(1000/60))?sleep:(1000/60));
+	}
 	return 0;
 }
 //-------------------------------------
@@ -1341,14 +1400,20 @@ int sdl_frame::sysevent(SDL_Event* e)
 //窗口框架运行函数
 int sdl_frame::run()
 {
-	clock_t _frame_timer;
-	double sleep = 0;
 	//sdltexture* tex=NULL;
 	while(!_is_exit)
 	{
-		_frame_timer = clock();
+		//_frame_timer = clock();
 		while(SDL_PollEvent(&_main_event))
 		{
+			/* 如果事件处理线程没有锁定则锁定后创建事件 */
+			//sdl_event_manager::_event_thread_lock.lock();
+			if(!sdl_event_manager::_event_thread_is_lock)
+			{
+				//sdl_event_manager::_event_process_thread_cond.wait(sdl_event_manager::_event_thread_lock);
+				sdl_event_manager::_event_thread_is_lock = 1;
+			}
+			/* 创建事件 */
 			switch(_main_event.type)
 			{
 				case SDL_QUIT:
@@ -1373,16 +1438,10 @@ int sdl_frame::run()
 					event_shunt(&_main_event);
 				break;
 			}
+			/* 事件线程解锁 */
+			sdl_event_manager::_event_thread_lock.unlock();
 		}
-		redraw();
-		//
-		/* 刷新屏幕 */
-		_window->update_window_surface();
-		/* 计算帧频 */
-		_fps = 1000 / ((clock() - _frame_timer + 0.001));
-		sleep = 1000/60-1000/_fps;
-		sleep = (sleep>0)?sleep:0;
-		SDL_Delay((sleep<(1000/60))?sleep:(1000/60));
+		SDL_Delay(1);
 	}
 	return 0;
 }
