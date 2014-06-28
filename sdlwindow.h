@@ -1097,9 +1097,9 @@ int sdl_board::redraw()
 {
 	sdl_board* node_board;
 	SDL_Rect prt,srt;
-	map<sdl_board*,int>::iterator node = _board_list.begin();
+	map<sdl_board*,int>::reverse_iterator node = _board_list.rbegin();
 	blit_surface(NULL,_board,NULL);
-	while(node!=_board_list.end())
+	while(node!=_board_list.rend())
 	{
 		//cout<<node->first<<endl;
 		node_board = (sdl_board*)node->first;
