@@ -296,7 +296,13 @@ def_dll int sdl_event_struct::push(SDL_Event *e)
 }
 def_dll int sdl_event_struct::pull()
 {
-	if(_event_queue.size())_event_queue.pop();
+	SDL_Event* t;
+	if(_event_queue.size())
+	{
+		t = _event_queue.front();
+		_event_queue.pop();
+		delete t;
+	}
 	return _event_queue.size();
 }
 def_dll int sdl_event_struct::count()
