@@ -6,7 +6,7 @@
 //						文档名：						sdlwindow.h
 //
 //						文档创建日期：			2014年2月22日
-//						文档更新日期：			2014年5月25日
+//						文档更新日期：			2014年6月25日
 //						文档创建者：				徐荣
 //						文档更新者：				徐荣
 //						文档创建者联系方式：Email:twtfcu3@126.com
@@ -40,12 +40,14 @@
 	#define def_dll
 #endif
 #include "sdlbase.h"
+#include <SDL2/SDL.h>
 #include <SDL2/SDL_thread.h>
 #include <iostream>
 #include <fstream>
 #include <ctime>
 #include <string.h>
 #include <map>
+#include <queue>
 #include <list>
 #include <string>
 #include <sstream>
@@ -133,7 +135,7 @@ class GUI : public B
 		virtual int event(SDL_Event*);//GUI专用类事件统一调用函数
 		int event(int(*)(T*,SDL_Event*));//GU专用类内部事件处理函数（设置用户事件函数接口）
 		virtual int sysevent(SDL_Event*e){return 0;};//GUI专用类系统事件处理函数的虚类
-		int handle(int handle){return 0;}
+		int handle(int handle,SDL_Event*e){return 0;}
 	protected:
 		static int sysprocess(T*,SDL_Event*);
 		static int userprocess(T*,SDL_Event*);
@@ -188,10 +190,10 @@ typedef class sdl_board : public GUI<sdl_board,sdlsurface>
 		//-----------------------------------------------
 	public:
 		/* 重载委托事件函数处理 */
-		int handle(int);
+		int handle(int,SDL_Event*);
 		/* 连接委托函数 */
 		virtual int connect_event(string,sdl_board*,int);
-		int event_signal(string);
+		int event_signal(string,SDL_Event*);
 		/* 鼠标点击事件 */
 		virtual int on_click(sdl_board*,void*);
 		//virtual int on_motion(sdl_board*,void*);
@@ -258,7 +260,7 @@ class sdl_event_struct
 		/* 
 				事件调用累计增量 
 		 */
-		def_dll int push();
+		def_dll int push(SDL_Event*);
 		/* 
 				事件调用后减量 
 		 */
@@ -270,8 +272,10 @@ class sdl_event_struct
 	protected:
 		//事件函数入口列表
 		def_dll	map<string,sdl_event_handle> _event;
+		//事件参数列表
+		def_dll queue<SDL_Event*> _event_queue;
 		//事件调用计数存储器
-		int _event_call_count;
+		def_dll int _event_call_count;
 };
 def_dll int sdl_event_struct::event_register(string event_string,sdl_event_handle event_function)
 {
@@ -283,19 +287,21 @@ def_dll int sdl_event_struct::event_unregister(string event_string)
 	_event.erase(event_string);
 	return 0;
 }
-def_dll int sdl_event_struct::push()
+def_dll int sdl_event_struct::push(SDL_Event *e)
 {
-	_event_call_count++;
+	SDL_Event* te = new SDL_Event;	
+	memcpy((char*)te,(char*)e,sizeof(SDL_Event));
+	_event_queue.push(te);
 	return _event_call_count;
 }
 def_dll int sdl_event_struct::pull()
 {
-	if(_event_call_count)_event_call_count--;
-	return _event_call_count;
+	if(_event_queue.size())_event_queue.pop();
+	return _event_queue.size();
 }
 def_dll int sdl_event_struct::count()
 {
-	return _event_call_count;
+	return _event_queue.size();
 }
 
 
@@ -431,7 +437,7 @@ class sdl_event_manager
 		/* 
 			对象事件调用 
 		 */
-		def_dll static int call_event(sdl_board*,string);
+		def_dll static int call_event(sdl_board*,string,SDL_Event*);
 		/* 
 			多线程管理事件列表 
 		 */
@@ -566,7 +572,7 @@ def_dll int sdl_event_manager::pull(sdl_board* connect_object,string event_strin
 
 	return event_struct->event_unregister(event_object_string.str());
 }
-def_dll int sdl_event_manager::call_event(sdl_board* event_object,string event_string)
+def_dll int sdl_event_manager::call_event(sdl_board* event_object,string event_string,SDL_Event* e)
 {
 	stringstream event_object_string;
 	map<sdl_board*,sdl_event_object*>::iterator event_iter;
@@ -592,7 +598,7 @@ def_dll int sdl_event_manager::call_event(sdl_board* event_object,string event_s
 	}
 	/* 使用对象事件列表累计 */
 	event_struct = (sdl_event_struct*)event_struct_iter->second;
-	return event_struct->push();
+	return event_struct->push(e);
 }
 def_dll int sdl_event_manager::start()
 {
@@ -643,7 +649,7 @@ def_dll int sdl_event_manager::run(void* p)
 							event_struct_handle = (sdl_event_handle)event_struct_handle_iter->second;
 							if(event_struct_handle.object)
 							{
-								event_struct_handle.object->handle(event_struct_handle.handle);
+								event_struct_handle.object->handle(event_struct_handle.handle,(SDL_Event*)(event_struct->_event_queue.front()));
 							}
 						}
 						event_struct->pull();
@@ -1154,12 +1160,12 @@ int sdl_board::is_show()
 }
 //---------------------------------------------
 //底板窗口委托事件处理
-int sdl_board::handle(int id)
+int sdl_board::handle(int id,SDL_Event* e)
 {
 	switch(id)
 	{
 		case sdlgui_button_click:
-			on_click(This,NULL);
+			on_click(This,(void*)e);
 		break;
 		default:
 		break;
@@ -1174,9 +1180,9 @@ int sdl_board::connect_event(string event_string,sdl_board* event_object,int eve
 }
 //----------------------------------------------
 //给底板窗口发送信号
-int sdl_board::event_signal(string event_string)
+int sdl_board::event_signal(string event_string,SDL_Event*e)
 {
-	return sdl_event_manager::call_event(This,event_string);
+	return sdl_event_manager::call_event(This,event_string,e);
 }
 //---------------------------------------------
 //底板窗口鼠标点击事件委托函数
@@ -1340,7 +1346,7 @@ int sdl_frame::event_shunt(SDL_Event* e)
 			if(t != this)
 			{
 				t->event(e);
-				t->event_signal("on_click");
+				t->event_signal("on_click",e);
 			}
 		break;
 		case SDL_MOUSEBUTTONUP:
@@ -1357,7 +1363,7 @@ int sdl_frame::event_shunt(SDL_Event* e)
 			//else
 			{
 				t->event(e);
-				t->event_signal("on_click");
+				t->event_signal("on_click",e);
 			}
 		break;
 		case SDL_KEYUP:
