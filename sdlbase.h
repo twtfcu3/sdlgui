@@ -186,6 +186,8 @@ typedef class sdltext : public sdlsurface
 		int render_unicode_blended(const Uint16*,Uint32);
 		int render_glyph_blended(const Uint16,Uint32);
 		//--------------------------------------
+	public:
+		static string font_path;
 	protected:
 		TTF_Font* _font;
 		char* _text;
@@ -193,6 +195,7 @@ typedef class sdltext : public sdlsurface
 		static int is_init;
 }*sdltext_ptr;
 int sdltext::is_init = 0;
+string sdltext::font_path="";
 //--------------------------------------------
 //
 ///

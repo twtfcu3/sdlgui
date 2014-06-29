@@ -211,6 +211,9 @@ typedef class sdl_board : public GUI<sdl_board,sdlsurface>
 		sdl_board *_parent;
 		sdl_board *_end,*_head;
 		sdl_board *_next,*_last;
+		sdltext  *_text_board;
+		Uint32		_text_color;
+		SDL_Rect  _text_rect;
 		int _is_show;
 		int _is_destroy;
 		map<sdl_board*,int> _board_list;
@@ -864,24 +867,33 @@ int sdl_board::init(const char* ptitle,int px,int py,int pw,int ph,Uint32 pflags
 	_board = new sdlsurface(0,pw,ph,32,0,0,0,0);
 	//----------------
 	//-----------------
-	//if(ptitle)
+	if(ptitle)
 	{
 		cur_platform = SDL_GetPlatform();
-		if(!cur_platform.compare("Windows"))
+		if(!sdltext::font_path.length())
 		{
+			if(!cur_platform.compare("Windows"))
+			{
+				sdltext::font_path = "c:/windows/fonts/simkai.ttf";
 			//_text_board = new sdltext("c:/windows/fonts/simkai.ttf",16);
+			}
+			else
+			if(!cur_platform.compare("Linux"))
+			{
+				sdltext::font_path = "/usr/share/font/truetype/wqy/wqy-zenhei.ttc";
+				//_text_board = new sdltext("/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",16);
+			}
+			else
+			if(!cur_platform.compare("Android"))
+			{
+				sdltext::font_path = "/system/fonts/DroidSanSansFallback.ttf";
+				//_text_board = new sdltext("/system/fonts/DroidSanSansFallback.ttf",16);
+			}
 		}
-		else
-		if(!cur_platform.compare("Linux"))
-		{
-			//_text_board = new sdltext("/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",16);
-		}
-		else
-		if(!cur_platform.compare("Android"))
-		{
-			//_text_board = new sdltext("/system/fonts/DroidSanSansFallback.ttf",16);
-		}
-		//if(_text_board)_text_board->render_utf8_solid(ptitle,_text_color);
+		if(_text_board)delete _text_board;
+		_text_board = new sdltext(sdltext::font_path.c_str(),16);
+		if(_text_board)_text_board->render_utf8_solid(ptitle,_text_color);
+		_text_rect.x = (pw-_text_board->clip_rect()->w)/2,_text_rect.y = (ph-_text_board->clip_rect()->h)/2,_text_rect.w = pw,_text_rect.h = ph;
 	}
 	//
 	/* 注册委托函数 */
@@ -910,6 +922,8 @@ int sdl_board::init()
 	_next = NULL;
 	_last = NULL;
 	_board = NULL;
+	_text_board= NULL;
+	_text_color = 0x000000;
 	/* 初始子窗口节点列表 */
 	_board_list.clear();
 	return 0;
@@ -1096,6 +1110,7 @@ int sdl_board::redraw()
 	map<sdl_board*,int>::iterator node = _board_list.begin();
 	//map<sdl_board*,int>::reverse_iterator node = _board_list.rbegin();
 	blit_surface(NULL,_board,NULL);
+	_text_board->blit_surface(NULL,_board,&_text_rect);
 	while(node!=_board_list.end())
 	{
 		//cout<<node->first<<endl;
