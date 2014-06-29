@@ -39,7 +39,6 @@
 #else
 	#define def_dll
 #endif
-#include "sdlbase.h"
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_thread.h>
 #include <iostream>
@@ -51,6 +50,8 @@
 #include <list>
 #include <string>
 #include <sstream>
+#include "sdlbase.h"
+#include "sdlthread.h"
 //-----------------------------------------------
 using namespace std;
 //--------------------------------------------------
@@ -842,16 +843,8 @@ GUI<sdl_board,sdlsurface>()
 //底板析构函数
 sdl_board::~sdl_board()
 {
-	map<sdl_board*,int>::iterator node;
-	sdl_board* board_node;
 	/* 释放缓冲表面 */
 	if(_board)delete _board;
-	for(node=_board_list.begin();node!=_board_list.end();node++)
-	{
-		board_node = (sdl_board*)node->first;
-		delete board_node;
-		_board_list.erase(node);
-	}
 }
 //底板初始函数
 int sdl_board::init(const char* ptitle,int px,int py,int pw,int ph,Uint32 pflags)
@@ -972,12 +965,13 @@ int sdl_board::is_child(sdl_board* obj)
 }
 sdl_board* sdl_board::child(int x,int y)
 {
-	map<sdl_board*,int>::iterator node;
+	//map<sdl_board*,int>::iterator node;
+	map<sdl_board*,int>::reverse_iterator node = _board_list.rbegin();
 	sdl_board* board_node;
 	int px,py,gw,gh;
 	px = x-_rect.x;
 	py = y-_rect.y;
-	for(node = _board_list.begin();node!=_board_list.end();node++)
+	for(node = _board_list.rbegin();node!=_board_list.rend();node++)
 	{
 		board_node=(sdl_board*)node->first;
 		gw = board_node->_rect.x+board_node->_rect.w;
@@ -1030,6 +1024,7 @@ int sdl_board::z_top(sdl_board* a,sdl_board *b,int z=1)
 {
 	map<sdl_board*,int>::iterator node;
 	if(!a)return -1;
+	_thread_lock.wait();
 	/* 如果没有b对象表示直接插入或删除 */
 	if(!b)
 	{
@@ -1074,16 +1069,17 @@ int sdl_board::z_top(sdl_board* a,sdl_board *b,int z=1)
 			_board_list.insert(node,pair<sdl_board*,int>(b,0));
 		}
 	}
+	_thread_lock.post();
 	return 0;
 }
 //---------------------------------------------
 //销毁子级窗口参数P表示是否销毁本身
-int sdl_board::destroy(int p)
+int sdl_board::destroy(int p=1)
 {
 	map<sdl_board*,int>::iterator node;
 	sdl_board* node_board;
 	_is_destroy = p;
-	if(_is_destroy && _parent)_parent->_board_list.erase(this);
+	if(_is_destroy && _parent)_parent->z_top(this,NULL,0);
 	for(node = _board_list.begin();node!=_board_list.end();node++)
 	{
 		node_board = (sdl_board*)node->first;
@@ -1097,9 +1093,10 @@ int sdl_board::redraw()
 {
 	sdl_board* node_board;
 	SDL_Rect prt,srt;
-	map<sdl_board*,int>::reverse_iterator node = _board_list.rbegin();
+	map<sdl_board*,int>::iterator node = _board_list.begin();
+	//map<sdl_board*,int>::reverse_iterator node = _board_list.rbegin();
 	blit_surface(NULL,_board,NULL);
-	while(node!=_board_list.rend())
+	while(node!=_board_list.end())
 	{
 		//cout<<node->first<<endl;
 		node_board = (sdl_board*)node->first;
@@ -1333,6 +1330,7 @@ int sdl_frame::redraw_thread(void* data)
 		f->_window->update_window_surface();
 		/* 计算帧频 */
 		f->_fps = 1000 / ((clock() - _frame_timer + 0.001));
+		//cout<<f->_fps<<endl;
 		sleep = 1000/60-1000/f->_fps;
 		sleep = (sleep>0)?sleep:0;
 		SDL_Delay((sleep<(1000/60))?sleep:(1000/60));

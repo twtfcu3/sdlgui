@@ -379,9 +379,9 @@ int sdlsurface::create_rgb_surface(Uint32 flags,int width,int height,int depth,U
 int sdlsurface::fill_rect(const SDL_Rect* rect,Uint32 color)
 {
 	int i;
-	_thread_lock.wait();
+	//_thread_lock.wait();
 	i = 	SDL_FillRect(_surface,rect,color);
-	_thread_lock.post();
+	//_thread_lock.post();
 	return i;
 }
 int sdlsurface::load_bmp(const char* file)
@@ -401,9 +401,9 @@ int sdlsurface::blit_surface(const SDL_Rect* srcrect,sdlsurface* dst,SDL_Rect* d
 	int i=-1;
 	if(dst)
 	{
-		_thread_lock.wait();
+		//_thread_lock.wait();
 		i = SDL_BlitSurface(_surface,srcrect,dst->surface(),dstrect);
-		_thread_lock.post();
+		//_thread_lock.post();
 	}
 	return i;
 }
@@ -484,9 +484,9 @@ int sdlsurface::blit_scaled(const SDL_Rect* srcrect,sdlsurface* dst,SDL_Rect* ds
 	int i=-1;
 	if(dst)
 	{
-		_thread_lock.wait();
+		//_thread_lock.wait();
 		i = SDL_BlitScaled(_surface,srcrect,dst->surface(),dstrect);
-		_thread_lock.post();
+		//_thread_lock.post();
 	}
 	return i;
 }
