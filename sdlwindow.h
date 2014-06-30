@@ -687,6 +687,29 @@ def_dll int sdl_event_manager::run(void* p)
 	}
 	return 0;
 }
+//------------------------------------------
+//
+//
+//					剪辑类
+//
+//
+//------------------------------------------
+typedef class sdl_clip : public sdlsurface
+{
+	public:
+		sdl_clip();
+		sdl_clip(int,int,string);
+		int init();
+		int init(int,int,string);
+		int clip(int,int);
+		int clip(int,int,sdlsurface*,SDL_Rect*);
+		//int blit_surface(int,int,sdlsurface*,SDL_Rect*);
+		//int blit_scael(int,int,sdlsurface*,SDL_Rect*);
+	protected:
+		int _w,_h;
+		int _sur_w,_sur_h;
+		int _row,_column;
+}*sdl_clip_ptr;
 //------------------------------------
 //
 //           工具类
@@ -1282,6 +1305,70 @@ int sdl_board::on_wheel(sdl_board* obj,void* data)
 {
 	cout<<"mouse wheel is"<<this<<endl;
 	return 0;
+}
+//------------------------------------------------
+//
+//
+//
+//
+//
+//
+//
+//
+//------------------------------------------------
+sdl_clip::sdl_clip()
+{
+	init();
+}
+sdl_clip::sdl_clip(int pw,int ph,string f)
+{
+	init(pw,ph,f);
+}
+int sdl_clip::init()
+{
+	return 0;
+}
+int sdl_clip::init(int pw,int ph,string f)
+{
+	init();
+	if(img_load(f.c_str()))return -1;
+	clip(pw,ph);
+	return 0;
+}
+int sdl_clip::clip(int pw,int ph)
+{
+	_w = pw;
+	_h = ph;
+	_sur_w = clip_rect()->w;
+	_sur_h = clip_rect()->h;
+	//
+	_column = _sur_w/_w;
+	if(_sur_w%_w)
+	{
+		_column += 1;
+	}
+	_row = _sur_h / _h;
+	if(_sur_h % _h)
+	{
+		_row += 1;
+	}
+	return 0;
+}
+int sdl_clip::clip(int ps,int pe,sdlsurface* dst,SDL_Rect *rt = NULL)
+{
+	//SDL_Rect srt={(ps%_column)*_w,(ps/_column)*_h,(pe%_column+1)*_w,(pe/_row+1)*_h};
+	SDL_Rect srt={(ps%_column)*_w,(ps/_column)*_h,_w,_h};
+	cout<<(ps%_column)*_h<<endl;
+	if(!dst)return -1;
+	if(rt)
+	{
+		return blit_scaled(&srt,dst,rt);		
+	}
+	else
+	{
+		return blit_surface(&srt,dst,NULL);
+	}
+	return -1;
 }
 //-------------------------------------------
 //
