@@ -112,6 +112,13 @@ const int sdlgui_scroll_hide= scroll_event_macro(003);
 #define window_event_macro(y) __event_macro__(1005,y) 
 /* 消息焦点改变时发送的消息 */
 const int sdlgui_window_focus= window_event_macro(001);
+/* 鼠标事件集合1006 */
+#define mouse_event_macro(y) __event_macro__(1006,y) 
+const int sdlgui_mouse_click= mouse_event_macro(001);
+const int sdlgui_mouse_db_click= mouse_event_macro(002);
+const int sdlgui_mouse_release= mouse_event_macro(003);
+const int sdlgui_mouse_motion= mouse_event_macro(004);
+const int sdlgui_mouse_wheel= mouse_event_macro(005);
 
 //-------------------------------------
 //
@@ -199,6 +206,10 @@ typedef class sdl_board : public GUI<sdl_board,sdlsurface>
 		int event_signal(string,SDL_Event*);
 		/* 鼠标点击事件 */
 		virtual int on_click(sdl_board*,void*);
+		/* 鼠标双击事件 */
+		virtual int on_db_click(sdl_board*,void*);
+		/* 鼠标释放事件 */
+		virtual int on_release(sdl_board*,void*);
 		/* 鼠标移动事件 */
 		virtual int on_motion(sdl_board*,void*);
 		/* 鼠标中键滚动事件 */
@@ -908,11 +919,15 @@ int sdl_board::init(const char* ptitle,int px,int py,int pw,int ph,Uint32 pflags
 	/* 注册委托函数 */
 	sdl_event_manager::push(this);
 	sdl_event_manager::push(this,"on_click");
+	sdl_event_manager::push(this,"on_db_click");
+	sdl_event_manager::push(this,"on_release");
 	sdl_event_manager::push(this,"on_motion");
 	sdl_event_manager::push(this,"on_wheel");
-	connect_event("on_click",this,sdlgui_button_click);
-	connect_event("on_motion",this,sdlgui_button_motion);
-	connect_event("on_wheel",this,sdlgui_button_wheel);
+	connect_event("on_click",this,sdlgui_mouse_click);
+	connect_event("on_db_click",this,sdlgui_mouse_db_click);
+	connect_event("on_release",this,sdlgui_mouse_release);
+	connect_event("on_motion",this,sdlgui_mouse_motion);
+	connect_event("on_wheel",this,sdlgui_mouse_wheel);
 	return 0;
 }
 //------------------------------------------
@@ -1200,16 +1215,23 @@ int sdl_board::handle(int id,SDL_Event* e)
 {
 	switch(id)
 	{
-		case sdlgui_button_click:
+		case sdlgui_mouse_click:
 			on_click(This,(void*)e);
 		break;
-		case sdlgui_button_motion:
+		case sdlgui_mouse_motion:
 			on_motion(This,(void*)e);
 		break;
-		case sdlgui_button_wheel:
+		case sdlgui_mouse_wheel:
 			on_wheel(This,(void*)e);
 		break;
+		case sdlgui_mouse_db_click:
+			on_db_click(This,(void*)e);
+		break;
+		case sdlgui_mouse_release:
+			on_release(This,(void*)e);
+		break;
 		default:
+			cout<<"other events"<<endl;
 		break;
 	}
 	return 0;
@@ -1230,7 +1252,21 @@ int sdl_board::event_signal(string event_string,SDL_Event*e)
 //底板窗口鼠标点击事件委托函数
 int sdl_board::on_click(sdl_board* obj,void* data)
 {
-	cout<<"click board is:"<<this<<endl;
+	cout<<"click mouse on board is:"<<this<<endl;
+	return 0;
+}
+//---------------------------------------------
+//底板窗口鼠标释放事件委托函数
+int sdl_board::on_release(sdl_board* obj,void* data)
+{
+	cout<<"release mouse on board is:"<<this<<endl;
+	return 0;
+}
+//---------------------------------------------
+//底板窗口鼠标双击事件委托函数
+int sdl_board::on_db_click(sdl_board* obj,void* data)
+{
+	cout<<"db_click mouse on board is:"<<this<<endl;
 	return 0;
 }
 //---------------------------------------------
@@ -1425,18 +1461,31 @@ int sdl_frame::event_shunt(SDL_Event* e)
 			if(t != this)
 			{
 				t->event(e);
-				t->event_signal("on_click",e);
+				//if(e->button.clicks==2)
+				{
+					//t->event_signal("on_db_click",e);
+				}
+				//else
+				{
+					t->event_signal("on_click",e);
+				}
 			}
 		break;
 		case SDL_MOUSEBUTTONUP:
 		case SDL_FINGERUP:
-		case SDL_FINGERMOTION:
+			if(t != this)
+			{
 				t->event(e);
-				t->event_signal("on_click",e);
+				t->event_signal("on_release",e);
+			}
 		break;
+		case SDL_FINGERMOTION:
 		case SDL_MOUSEMOTION:
+			if(t != this)
+			{
 				t->event(e);
 				t->event_signal("on_motion",e);
+			}
 		break;
 		case SDL_MOUSEWHEEL:
 			//if(t != this)t->event(e);
@@ -1526,7 +1575,7 @@ int sdl_frame::run()
 				switch(sdl_frame::_main_event.type)
 				{
 					case SDL_QUIT:
-						cout<<_node_window<<endl;
+						//cout<<_node_window<<endl;
 						_node_window->event(&_main_event);
 					break;
 					case SDL_WINDOWEVENT:

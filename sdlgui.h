@@ -67,6 +67,6 @@ const int sdlgui_ime_up= ime_event_macro(001);
 #include "sdlbase.h"
 #include "sdlthread.h"
 #include "sdlwindow.h"
-//#include "sdltools.h"
+#include "sdltools.h"
 #endif// __SDLGUI_MAIN_HANDLE__
 
