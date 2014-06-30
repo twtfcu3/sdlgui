@@ -145,7 +145,7 @@ class GUI : public B
 		virtual int event(SDL_Event*);//GUI专用类事件统一调用函数
 		int event(int(*)(T*,SDL_Event*));//GU专用类内部事件处理函数（设置用户事件函数接口）
 		virtual int sysevent(SDL_Event*e){return 0;};//GUI专用类系统事件处理函数的虚类
-		int handle(int handle,SDL_Event*e){return 0;}
+		virtual int handle(int handle,SDL_Event*e){return 0;}
 	protected:
 		static int sysprocess(T*,SDL_Event*);
 		static int userprocess(T*,SDL_Event*);
@@ -201,8 +201,11 @@ typedef class sdl_board : public GUI<sdl_board,sdlsurface>
 	public:
 		/* 重载委托事件函数处理 */
 		int handle(int,SDL_Event*);
+		/* 注册事件 */
+		virtual int register_event(string);
 		/* 连接委托函数 */
 		virtual int connect_event(string,sdl_board*,int);
+		/* 发送事件信号 */
 		int event_signal(string,SDL_Event*);
 		/* 鼠标点击事件 */
 		virtual int on_click(sdl_board*,void*);
@@ -941,15 +944,15 @@ int sdl_board::init(const char* ptitle,int px,int py,int pw,int ph,Uint32 pflags
 	//
 	/* 注册委托函数 */
 	sdl_event_manager::push(this);
-	sdl_event_manager::push(this,"on_click");
-	sdl_event_manager::push(this,"on_db_click");
-	sdl_event_manager::push(this,"on_release");
-	sdl_event_manager::push(this,"on_motion");
-	sdl_event_manager::push(this,"on_wheel");
+	register_event("on_click");
 	connect_event("on_click",this,sdlgui_mouse_click);
+	register_event("on_db_click");
 	connect_event("on_db_click",this,sdlgui_mouse_db_click);
+	register_event("on_release");
 	connect_event("on_release",this,sdlgui_mouse_release);
+	register_event("on_motion");
 	connect_event("on_motion",this,sdlgui_mouse_motion);
+	register_event("on_wheel");
 	connect_event("on_wheel",this,sdlgui_mouse_wheel);
 	return 0;
 }
@@ -1144,7 +1147,7 @@ int sdl_board::destroy(int p=1)
 	for(node = _board_list.begin();node!=_board_list.end();node++)
 	{
 		node_board = (sdl_board*)node->first;
-		return node_board->destroy(1);		
+		if(node_board->destroy(1))return -1;		
 	}
 	return 0;
 }
@@ -1258,6 +1261,12 @@ int sdl_board::handle(int id,SDL_Event* e)
 		break;
 	}
 	return 0;
+}
+//----------------------------------------------
+//底板窗口注册事件函数
+int sdl_board::register_event(string event_string)
+{
+	return sdl_event_manager::push(this,event_string);
 }
 //----------------------------------------------
 //底板窗口连接委托事件函数

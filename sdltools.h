@@ -41,7 +41,6 @@ int sdl_button::init(const char* ptitle,int px,int py,int pw,int ph,Uint32 pflag
 	if(sdl_widget::init(ptitle,px,py,pw,ph,pflag))return -1;
 	_page.sdlsurface::init(0,pw*4,ph,32,0,0,0,0);
 	_page.clip(pw,ph);
-	fill_rect(NULL,0x00ff00);
 	rt.x = 0;
 	rt.y = 0;
 	rt.w = pw;
@@ -51,6 +50,8 @@ int sdl_button::init(const char* ptitle,int px,int py,int pw,int ph,Uint32 pflag
 	_page.fill_rect(&rt,0x0000ff);
 	rt.x = pw*2;
 	_page.fill_rect(&rt,0xff0000);
+	//
+	_page.clip(1,1,this,NULL);
 	return 0;
 }
 int sdl_button::sysevent(SDL_Event*e)
