@@ -182,7 +182,7 @@ typedef class sdl_board : public GUI<sdl_board,sdlsurface>
 		template<class T>T* add(const char*,int,int,int,int,Uint32);
 		template<class T>T* add(T*);
 		/* 销毁子级窗口 */
-		int destroy(int);
+		virtual int destroy(int);
 		/* 调整当前窗口Z序 */
 		int z_top(sdl_board*,sdl_board*,int);
 		/* 初始化时用于绘图窗口的虚函数 */
@@ -643,7 +643,7 @@ def_dll int sdl_event_manager::run(void* p)
 			 */
 			if(event_object->_is_destroy)
 			{
-				cout<<event_object<<":"<<event_object->_is_destroy<<endl;
+				//cout<<event_object<<":"<<event_object->_is_destroy<<endl;
 			}
 			else
 			{
@@ -710,7 +710,7 @@ typedef class sdl_frame : public GUI<sdl_frame,sdl_board>
 		int init(const char*,int,int,int,int,Uint32);
 		int redraw();
 		virtual int sysevent(SDL_Event*);
-		int run();
+		int destroy(int);
 		sdlwindow* frame();
 		//------------------------------------------------
 		int pos(int,int);
@@ -723,25 +723,32 @@ typedef class sdl_frame : public GUI<sdl_frame,sdl_board>
 	protected:
 		/* 事件分流 */
 		int event_shunt(SDL_Event*);
+	protected:
 		/* 渲染多线程函数 */
 		static int redraw_thread(void*);
 	public:
 		//sdl_ime ime;
+		static int run();
+		static SDL_Event _main_event;
+		/* 消息处理循环变量 */
+		static int _is_exit;
 	protected:
 		static sdl_board* _capture_win;
+		static map<Uint32,sdl_frame*> _window_list;
 	protected:
 		sdlwindow* _window;
 		sdlsurface _screen;
-		SDL_Event _main_event;
 		double _fps;
 		SDL_Point _window_rect;
-		/* 消息处理循环变量 */
-		int _is_exit;
 		/* 处理消息流的子级线程 */
 		SDL_Thread* _event_thread;
 		/* 处理重绘流的子级线程 */
 		SDL_Thread* _redraw_thread;
 }*sdl_frame_ptr;
+sdl_board* sdl_frame::_capture_win = NULL;
+map<Uint32,sdl_frame*> sdl_frame::_window_list;
+SDL_Event sdl_frame::_main_event;
+int sdl_frame::_is_exit=0;
 //--------------------------------------------------
 //
 //
@@ -1294,6 +1301,7 @@ int sdl_frame::init(const char* ptitle,int px,int py,int pw,int ph,Uint32 pflags
 	//-------------------
 	//创建窗口
 	_window = new sdlwindow(ptitle,px,py,pw,ph,pflags);
+	sdl_frame::_window_list.insert(pair<Uint32,sdl_frame*>(SDL_GetWindowID(_window->window()),this));
 	/* 创建渲染器 */
 	if(_window)
 	{
@@ -1351,6 +1359,14 @@ int sdl_frame::redraw_thread(void* data)
 		SDL_Delay((sleep<(1000/60))?sleep:(1000/60));
 	}
 	return 0;
+}
+//-------------------------------------------
+//销毁顶级窗口
+int sdl_frame::destroy(int p=1)
+{
+	cout<<"window destroy"<<endl;
+	_window->destroy();
+	sdl_frame::_window_list.erase(SDL_GetWindowID(_window->window()));
 }
 //-------------------------------------
 //返回当前FPS
@@ -1446,6 +1462,9 @@ int sdl_frame::sysevent(SDL_Event* e)
 				case SDL_WINDOWEVENT_RESTORED:
 					_screen.surface(_window->get_window_surface()->surface());
 				break;
+				case SDL_WINDOWEVENT_CLOSE:
+					destroy();
+				break;
 				default:
 					cout<<"Window Event"<<endl;
 				break;
@@ -1462,6 +1481,8 @@ int sdl_frame::sysevent(SDL_Event* e)
 int sdl_frame::run()
 {
 	//sdltexture* tex=NULL;
+	map<Uint32,sdl_frame*>::iterator _node;
+	sdl_frame* _node_window;
 	while(!_is_exit)
 	{
 		//_frame_timer = clock();
@@ -1474,14 +1495,23 @@ int sdl_frame::run()
 				//sdl_event_manager::_event_process_thread_cond.wait(sdl_event_manager::_event_thread_lock);
 				sdl_event_manager::_event_thread_is_lock = 1;
 			}
+			/* 确定事件窗口 */
+			if(_window_list.empty())
+			{
+				_is_exit = 1;
+				break;
+			}
+			_node = _window_list.find(_main_event.window.windowID);
+			_node_window = (sdl_frame*)_node->second;
 			/* 创建事件 */
 			switch(_main_event.type)
 			{
 				case SDL_QUIT:
-					event(&_main_event);
+					_node_window->event(&_main_event);
 				break;
 				case SDL_WINDOWEVENT:
-					event(&_main_event);
+					//event(&_main_event);
+					_node_window->event(&_main_event);
 				break;
 				case SDL_USEREVENT:
 					/* 计时器消息分流 */
@@ -1491,12 +1521,14 @@ int sdl_frame::run()
 					}
 					else
 					{
-						event(&_main_event);
+						//event(&_main_event);
+					  _node_window->event(&_main_event);
 					}
 				break;
 				default:
 					/* 其它消息分流 */
-					event_shunt(&_main_event);
+					//event_shunt(&_main_event);
+					_node_window->event_shunt(&_main_event);
 				break;
 			}
 			/* 事件线程解锁 */
