@@ -48,10 +48,8 @@ int sdl_button::init(const char* ptitle,int px,int py,int pw,int ph,Uint32 pflag
 	rt.h = ph;
 	_page.fill_rect(&rt,0x00ff00);
 	rt.x = pw*1;
-	rt.y = ph*1;
 	_page.fill_rect(&rt,0x0000ff);
 	rt.x = pw*2;
-	rt.y = ph*2;
 	_page.fill_rect(&rt,0xff0000);
 	return 0;
 }
@@ -72,7 +70,7 @@ int sdl_button::on_click(sdl_board* obj,void* data)
 }
 int sdl_button::on_release(sdl_board* obj,void* data)
 {
-	_page.clip(1,0,this,NULL);
+	_page.clip(1,1,this,NULL);
 	return 0;
 }
 #endif// __SDLGUI_TOOLS_HEAD__

@@ -1356,9 +1356,8 @@ int sdl_clip::clip(int pw,int ph)
 }
 int sdl_clip::clip(int ps,int pe,sdlsurface* dst,SDL_Rect *rt = NULL)
 {
-	//SDL_Rect srt={(ps%_column)*_w,(ps/_column)*_h,(pe%_column+1)*_w,(pe/_row+1)*_h};
-	SDL_Rect srt={(ps%_column)*_w,(ps/_column)*_h,_w,_h};
-	cout<<(ps%_column)*_h<<endl;
+	SDL_Rect srt={(ps%_column)*_w,(ps/_column)*_h,(pe%_column-ps%_column+1)*_w,((ps-pe)/_column+1)*_h};
+	//cout<<srt.x<<":"<<srt.y<<"-"<<srt.w<<":"<<srt.h<<endl;
 	if(!dst)return -1;
 	if(rt)
 	{
