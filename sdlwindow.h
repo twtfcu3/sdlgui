@@ -740,6 +740,8 @@ typedef class sdl_frame : public GUI<sdl_frame,sdl_board>
 		sdlsurface _screen;
 		double _fps;
 		SDL_Point _window_rect;
+		/* 顶级窗口渲染循环 */
+		int _is_redraw;
 		/* 处理消息流的子级线程 */
 		SDL_Thread* _event_thread;
 		/* 处理重绘流的子级线程 */
@@ -1273,11 +1275,17 @@ GUI<sdl_frame,sdl_board>()
 //框架析构函数
 sdl_frame::~sdl_frame()
 {
+	int _thread_state;
 	if(_window)
 	{
 		delete _window;
 	}
-
+	if(_redraw_thread)
+	{
+		_is_redraw = 0;
+		SDL_WaitThread(_redraw_thread,&_thread_state);
+		_redraw_thread = NULL;
+	}
 }
 //-------------------------
 //
@@ -1287,7 +1295,8 @@ int sdl_frame::init()
 	_window = NULL;
 	//_renderer = NULL;
 	_event_thread = NULL;
-	_is_exit = 0;
+	//_is_exit = 0;
+	_is_redraw = 1;
 	return 0;
 }
 //-------------------------
@@ -1343,8 +1352,9 @@ int sdl_frame::redraw_thread(void* data)
 	clock_t _frame_timer;
 	double sleep = 0;
 	sdl_frame* f = (sdl_frame*)data;
-	while(!f->_is_exit)
+	while(f->_is_redraw)
 	{
+		//cout<<f<<endl;
 		_frame_timer = clock();
 		//
 		f->redraw();
@@ -1364,9 +1374,13 @@ int sdl_frame::redraw_thread(void* data)
 //销毁顶级窗口
 int sdl_frame::destroy(int p=1)
 {
-	cout<<"window destroy"<<endl;
+	int _thread_state;
+	_is_redraw = 0;
+	SDL_WaitThread(_redraw_thread,&_thread_state);
+	_redraw_thread = NULL;
 	_window->destroy();
 	sdl_frame::_window_list.erase(SDL_GetWindowID(_window->window()));
+	return 0;
 }
 //-------------------------------------
 //返回当前FPS
@@ -1483,59 +1497,67 @@ int sdl_frame::run()
 	//sdltexture* tex=NULL;
 	map<Uint32,sdl_frame*>::iterator _node;
 	sdl_frame* _node_window;
-	while(!_is_exit)
+	cout<<"window destroy start"<<endl;
+	while(!sdl_frame::_is_exit)
 	{
-		//_frame_timer = clock();
-		while(SDL_PollEvent(&_main_event))
+		//cout<<_is_exit<<endl;
+		if(sdl_frame::_window_list.empty())
 		{
-			/* 如果事件处理线程没有锁定则锁定后创建事件 */
-			//sdl_event_manager::_event_thread_lock.lock();
-			if(!sdl_event_manager::_event_thread_is_lock)
-			{
-				//sdl_event_manager::_event_process_thread_cond.wait(sdl_event_manager::_event_thread_lock);
-				sdl_event_manager::_event_thread_is_lock = 1;
-			}
-			/* 确定事件窗口 */
-			if(_window_list.empty())
-			{
-				_is_exit = 1;
-				break;
-			}
-			_node = _window_list.find(_main_event.window.windowID);
-			_node_window = (sdl_frame*)_node->second;
-			/* 创建事件 */
-			switch(_main_event.type)
-			{
-				case SDL_QUIT:
-					_node_window->event(&_main_event);
-				break;
-				case SDL_WINDOWEVENT:
-					//event(&_main_event);
-					_node_window->event(&_main_event);
-				break;
-				case SDL_USEREVENT:
-					/* 计时器消息分流 */
-					if(_main_event.user.code == sdlgui_event_timer)
-					{
-							((sdl_board*)_main_event.user.data1)->event(&_main_event);
-					}
-					else
-					{
-						//event(&_main_event);
-					  _node_window->event(&_main_event);
-					}
-				break;
-				default:
-					/* 其它消息分流 */
-					//event_shunt(&_main_event);
-					_node_window->event_shunt(&_main_event);
-				break;
-			}
-			/* 事件线程解锁 */
-			sdl_event_manager::_event_thread_lock.unlock();
+			sdl_frame::_is_exit = 1;
+			return 0;
+			//break;
 		}
-		SDL_Delay(1);
+		else
+		{
+			while(SDL_PollEvent(&sdl_frame::_main_event))
+			{
+				/* 如果事件处理线程没有锁定则锁定后创建事件 */
+				//sdl_event_manager::_event_thread_lock.lock();
+				if(!sdl_event_manager::_event_thread_is_lock)
+				{
+					//sdl_event_manager::_event_process_thread_cond.wait(sdl_event_manager::_event_thread_lock);
+					sdl_event_manager::_event_thread_is_lock = 1;
+				}
+				/* 确定事件窗口 */
+				_node = _window_list.find(sdl_frame::_main_event.window.windowID);
+				_node_window = (sdl_frame*)_node->second;
+				if(!_node_window)return -1;
+				/* 创建事件 */
+				switch(sdl_frame::_main_event.type)
+				{
+					case SDL_QUIT:
+						cout<<_node_window<<endl;
+						_node_window->event(&_main_event);
+					break;
+					case SDL_WINDOWEVENT:
+						//event(&_main_event);
+						_node_window->event(&sdl_frame::_main_event);
+					break;
+					case SDL_USEREVENT:
+						/* 计时器消息分流 */
+						if(sdl_frame::_main_event.user.code == sdlgui_event_timer)
+						{
+							((sdl_board*)sdl_frame::_main_event.user.data1)->event(&_main_event);
+						}
+						else
+						{
+							//event(&_main_event);
+							_node_window->event(&sdl_frame::_main_event);
+						}
+					break;
+					default:
+						/* 其它消息分流 */
+						//event_shunt(&_main_event);
+						_node_window->event_shunt(&sdl_frame::_main_event);
+					break;
+				}
+				/* 事件线程解锁 */
+				sdl_event_manager::_event_thread_lock.unlock();
+			}
+			SDL_Delay(1);
+		}
 	}
+	cout<<"window destroy stop"<<endl;
 	return 0;
 }
 //------------------------------------------------
