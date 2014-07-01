@@ -13,6 +13,7 @@ typedef class sdl_button : public GUI<sdl_button,sdl_widget>
 		int init();
 		int init(const char*,int,int,int,int,Uint32);
 		int sysevent(SDL_Event*);
+		int handle(int,SDL_Event*);
 		int on_click(sdl_board*,void*);
 		int on_release(sdl_board*,void*);
 	protected:
@@ -63,15 +64,30 @@ int sdl_button::sysevent(SDL_Event*e)
 	}
 	return sdl_widget::sysevent(e);
 }
+int sdl_button::handle(int id,SDL_Event* e)
+{
+	switch(id)
+	{
+		case sdlgui_mouse_click:
+			on_click(this,(void*)e);
+		break;
+		case sdlgui_mouse_release:
+			on_release(this,(void*)e);
+		break;
+	}
+	return 0;
+	//return sdl_board::handle(id,e);
+}
 int sdl_button::on_click(sdl_board* obj,void* data)
 {
-	//fill_rect(NULL,0x00ff00);	
 	_page.clip(0,0,this,NULL);
-	return 0;
+	//return 0;
+	return sdl_board::on_click(obj,data);
 }
 int sdl_button::on_release(sdl_board* obj,void* data)
 {
 	_page.clip(1,1,this,NULL);
 	return 0;
+	//return sdl_widget::on_release(obj,data);
 }
 #endif// __SDLGUI_TOOLS_HEAD__
